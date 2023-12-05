@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Buscaminas</title>
+    <link rel="stylesheet" href="normalize.css">
+    <link rel="stylesheet" href="style.css">
+    <script src="app.js"></script>
+</head>
+<body>
+    <div class="main">
+        <div class="header">
+            <h1>BUSCAMINAS</h1>
+            <div class="formulario-juego">
+                <div class="formulario">
+                    <div class="entrada">
+                        <label for="tamaño">Tamaño (min 6, max 20): </label>
+                        <input id="tamaño" type="number" min="6" max="20" value="10">
+                    </div>
+                    <div class="entrada">
+                        <label for="num-bombas">Número de bombas (min 1, max: Tamaño x Tamaño): </label>
+                        <input id="num-bombas" type="number" min="1" value="20">
+                    </div>
+                </div>
+                <button class="btn-generar">Generar</button>
+            </div>
+        </div>
+        <div class="contenedor-juego hidden">
+            <h2>Banderas colocadas: <span id="num-banderas"></span> (faltan <span id="banderas-restantes"></span>)</h2>
+            <div class="juego"></div>
+            <div class="resultado-juego"></div>
+        </div>
+    </div>
+</body>
+</html>
