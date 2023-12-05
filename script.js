@@ -1,195 +1,226 @@
-  document.addEventListener('DOMContentLoaded', () => {
-    const gameContainer = document.querySelector('.game-container');
-    const game = document.querySelector('.game');
-    const gameResult = document.querySelector('.game-result');
-    const flagCounter = document.getElementById('num-flags');
-    const remainingFlagsCounter = document.getElementById('remaining-flags');
-    const generateButton = document.querySelector('.btn-generate');
+document.addEventListener('DOMContentLoaded', function() {
+    let completed = false
+    const board = document.querySelector('#board')
+    const boardSizeButtons = document.querySelectorAll('.js-board-size')
 
-    generateButton.addEventListener('click', createGame);
+    let boardSizeX = 8
+    let boardSizeY = 8
+    let numTiles = boardSizeX * boardSizeY
+    let numLandmines = boardSizeX
+    let allTiles = []
+    let landminePositions = []
+    let isAdjacentSafe
 
-    let width = 10;
-    let numBombs = 20;
-    let numFlags = 0;
-    let cells = [];
-    let gameOver = false;
+    Array.from(boardSizeButtons).forEach(button => {
+      button.addEventListener('click', handleBoardSizeChange)
+    })
+    board.addEventListener('contextmenu', (evt) => {
+        evt.preventDefault()
+    })
 
-    function addNumbers() {
-      for (let i = 0; i < cells.length; i++) {
-        let total = 0;
-        const isLeftEdge = (i % width === 0);
-        const isRightEdge = (i % width === width - 1);
+    // Generates array of detailed tiles
+    const setTilesDetails = () => {
+      allTiles = []
+      for(let i=1; i <= numTiles; i++) {
+        // Make detailed mineless tiles
+        if(!landminePositions.includes(i)) {
+          let surroundingTiles = []
+          surroundingTiles.push(i-boardSizeX, i+boardSizeX)
+          // For tiles on the left:
+          if ( (i-1)%boardSizeX === 0 ) {
+            surroundingTiles.push(
+              i+1, i-(boardSizeX-1), i+(boardSizeX+1)
+            )
+          // For tiles on right:
+          } else if ( i%boardSizeX === 0) {
+            surroundingTiles.push(
+              i-1, i-(boardSizeX+1), i+(boardSizeX-1)
+            )
+          // For surrounded tiles
+          } else {
+            surroundingTiles.push(
+              i-1, i+1, i-(boardSizeX+1), i-(boardSizeX-1), i+(boardSizeX-1), i+(boardSizeX+1)
+            )
+          }
 
-        if (cells[i].classList.contains('empty')) {
-          if (i > 0 && !isLeftEdge && cells[i - 1].classList.contains('bomb')) total++;
-          if (i < (width * width - 1) && !isRightEdge && cells[i + 1].classList.contains('bomb')) total++;
-          if (i > width && cells[i - width].classList.contains('bomb')) total++;
-          if (i > (width - 1) && !isRightEdge && cells[i + 1 - width].classList.contains('bomb')) total++;
-          if (i > width && !isLeftEdge && cells[i - 1 - width].classList.contains('bomb')) total++;
-          if (i < (width * (width - 1)) && cells[i + width].classList.contains('bomb')) total++;
-          if (i < (width * (width - 1)) && !isRightEdge && cells[i + 1 + width].classList.contains('bomb')) total++;
-          if (i < (width * (width - 1)) && !isLeftEdge && cells[i - 1 + width].classList.contains('bomb')) total++;
+          //Remove tiles outside board
+          surroundingTiles = surroundingTiles.filter(tile => (
+            tile > 0 && tile <= numTiles
+          ))
 
-          cells[i].setAttribute('data', total);
-        }
-      }
-    }
+          let numLandmines = 0
+          surroundingTiles.forEach(tile => {
+            if(landminePositions.includes(tile)) numLandmines += 1
+          })
 
-    function revealCells(cell) {
-      const cellId = parseInt(cell.id);
-      const isLeftEdge = (cellId % width === 0);
-      const isRightEdge = (cellId % width === width - 1);
-
-      setTimeout(() => {
-        if (cellId > 0 && !isLeftEdge) click(cells[cellId - 1]);
-        if (cellId < (width * width - 2) && !isRightEdge) click(cells[cellId + 1]);
-        if (cellId >= width) click(cells[cellId - width]);
-        if (cellId > (width - 1) && !isRightEdge) click(cells[cellId + 1 - width]);
-        if (cellId > (width + 1) && !isLeftEdge) click(cells[cellId - 1 - width]);
-        if (cellId < (width * (width - 1))) click(cells[cellId + width]);
-        if (cellId < (width * width - width - 2) && !isRightEdge) click(cells[cellId + 1 + width]);
-        if (cellId < (width * width - width) && !isLeftEdge) click(cells[cellId - 1 + width]);
-      }, 10);
-    }
-
-    function bomb(cellClicked) {
-      gameOver = true;
-      cellClicked.classList.add('back-red');
-
-      cells.forEach((cell, index, array) => {
-        if (cell.classList.contains('bomb')) {
-          cell.innerHTML = '💣';
-          cell.classList.remove('bomb');
-          cell.classList.add('flagged');
-        }
-      });
-
-      gameResult.textContent = 'Sorry, you lost!!!';
-      gameResult.classList.add('back-red');
-    }
-
-    function addFlag(cell) {
-      if (gameOver) return;
-
-      if (!cell.classList.contains('flagged') && numFlags < numBombs) {
-        if (!cell.classList.contains('flag')) {
-          cell.classList.add('flag');
-          cell.innerHTML = '🚩';
-          numFlags++;
-          updateFlagCounters();
-          checkGame();
+          const tile = {
+            position: i,
+            type: 'safe',
+            numLandmines,
+            surroundingTiles,
+            hidden: true,
+            flagged: false
+          }
+          allTiles.push(tile)
+        // Make detailes mine tiles
         } else {
-          cell.classList.remove('flag');
-          cell.innerHTML = '';
-          numFlags--;
+          const tile = {
+            position: i,
+            type: 'landmine',
+            hidden: true,
+            flagged: false
+          }
+          allTiles.push(tile)
         }
       }
     }
 
-    function checkGame() {
-      let correctFlags = 0;
 
-      for (let i = 0; i < cells.length; i++) {
-        if (cells[i].classList.contains('flag') && cells[i].classList.contains('bomb')) {
-          correctFlags++;
+    const renderTiles = (tiles) => {
+      board.innerHTML = ''
+      const tilesNodes = document.createDocumentFragment()
+
+      tiles.forEach((tile) => {
+        let background = document.createElement('div')
+
+        if (tile.flagged) {
+          background.id = tile.position
+          background.className = 'flagged'
+        } else if (!tile.hidden && tile.type === 'safe') {
+          background.className = tile.type
+          background.innerHTML = tile.numLandmines !== 0 ? tile.numLandmines : ''
+        } else if(!tile.hidden && tile.type === 'landmine' && completed) {
+          background.className = 'landmine-green'
+        } else if (!tile.hidden && tile.type === 'landmine') {
+          background.className = tile.type
+        } else {
+          background.id = tile.position
+          background.className = 'hidden'
         }
-      }
 
-      if (correctFlags === numBombs) {
-        gameOver = true;
-        gameResult.textContent = 'Congratulations, you won!!!';
-        gameResult.classList.add('back-green');
-      }
+        const tileNode = document.createElement('div')
+        tileNode.className = 'tile'
+        tileNode.append(background)
+
+        tilesNodes.appendChild(tileNode)
+      })
+
+      board.style.width = 4 * boardSizeX + 'rem'
+      board.appendChild(tilesNodes)
     }
 
-    function updateFlagCounters() {
-      flagCounter.textContent = numFlags;
-      remainingFlagsCounter.textContent = (numBombs - numFlags);
-    }
+    placeLandmines()
+    setTilesDetails()
+    renderTiles(allTiles)
 
-    function click(cell) {
-      if (cell.classList.contains('flagged') || cell.classList.contains('flag') || gameOver) return;
-
-      if (cell.classList.contains('bomb')) {
-        bomb(cell);
-      } else {
-        let total = cell.getAttribute('data');
-        if (total != 0) {
-          cell.classList.add('flagged');
-          cell.innerHTML = total;
-          return;
+    function displayTile(tileId) {
+      if (tileId) {
+        const tileObj = allTiles[tileId-1]
+        if (tileObj.flagged) {
+          return
+        } else if (tileObj.type === 'landmine') {
+          gameLost()
+          return
+        } else if (tileObj.type === 'safe' && tileObj.numLandmines === 0) {
+          tileObj.hidden = false
+          openAdjacentClearTiles(tileObj)
+        } else {
+          tileObj.hidden = false
+          renderTiles(allTiles)
         }
-        cell.classList.add('flagged');
-        revealCells(cell);
+        if (checkForWin(allTiles)) gameWon()
       }
     }
 
-    function doubleClick(cell) {
-      if (!cell.classList.contains('flagged') || gameOver) return;
-
-      revealCells(cell);
+    function resetGame() {
+      completed = false
+      clearTimeout(isAdjacentSafe)
+      landminePositions = []
+      placeLandmines()
+      setTilesDetails()
+      renderTiles(allTiles)
     }
 
-    function createGame() {
-      width = parseInt(document.getElementById('size').value);
-      numBombs = parseInt(document.getElementById('num-bombs').value);
-
-      if (width < 6 || width > 20) {
-        alert(`Size must be between 6 and 20`);
-        return;
+    function flagTile(tileId) {
+      if (tileId) {
+        const tileObj = allTiles[tileId-1]
+        tileObj.flagged = !tileObj.flagged
+        renderTiles(allTiles)
       }
-
-      if (numBombs < 1) {
-        alert(`Number of bombs must be at least 1`);
-        return;
-      }
-
-      if (numBombs > width * width) {
-        alert(`Number of bombs cannot exceed the product of Size x Size (${width * width})`);
-        return;
-      }
-
-      if (gameContainer.classList.contains('hidden')) {
-        gameContainer.classList.remove('hidden');
-      } else {
-        game.innerHTML = '';
-        gameResult.innerHTML = '';
-        gameResult.className = 'game-result';
-        cells = [];
-        gameOver = false;
-        numFlags = 0;
-      }
-
-      game.style.width = (width * 4) + 'rem';
-      gameResult.style.width = (width * 4) + 'rem';
-
-      const bombArray = Array(numBombs).fill('bomb');
-      const emptyArray = Array(width * width - numBombs).fill('empty');
-      const fullArray = emptyArray.concat(bombArray);
-      fullArray.sort(() => Math.random() - 0.5);
-
-      for (let i = 0; i < width * width; i++) {
-        const cell = document.createElement('div');
-        cell.setAttribute('id', i);
-        cell.classList.add(fullArray[i]);
-        game.appendChild(cell);
-        cells.push(cell);
-
-        cell.addEventListener('click', () => {
-          click(event.target);
-        });
-
-        cell.oncontextmenu = function (event) {
-          event.preventDefault();
-          addFlag(cell);
-        };
-
-        cell.addEventListener('dblclick', () => {
-          doubleClick(event.target);
-        });
-      }
-
-      addNumbers();
-      updateFlagCounters();
     }
-  });
+
+    function gameLost() {
+      allTiles.forEach(tile => {
+        tile.hidden = false
+        tile.flagged = false
+      })
+      renderTiles(allTiles)
+    }
+
+    function checkForWin(tiles) {
+      return tiles.filter(tile => tile.hidden && tile.type === 'safe').length === 0
+    }
+
+    function gameWon() {
+      completed = true
+      allTiles.forEach(tile => {
+        tile.hidden = false
+        tile.flagged = false
+      })
+      renderTiles(allTiles)
+    }
+
+    function openAdjacentClearTiles(tile) {
+      tile.surroundingTiles.forEach(surround => {
+        const sibling = allTiles[surround-1]
+
+        if (sibling.type === 'safe' && sibling.hidden) {
+          sibling.hidden = false
+          if(sibling.numLandmines === 0) {
+            isAdjacentSafe = setTimeout(() => {openAdjacentClearTiles(sibling)}, 50)
+          }
+        }
+      })
+
+      renderTiles(allTiles)
+    }
+
+    function handleBoardSizeChange({ target }) {
+      const x = target.getAttribute('data-size-x')
+      const y = target.getAttribute('data-size-y')
+
+      boardSizeX = x
+      boardSizeY = y
+      numTiles = boardSizeX * boardSizeY
+      numLandmines = (boardSizeX * 2) ^ 2
+
+      resetGame()
+    }
+
+    function placeLandmines() {
+      while ( landminePositions.length < numLandmines) {
+        let position = Math.random() * ((numTiles-1) - 1) + 1
+        position = Math.floor(position)
+        if (!landminePositions.includes(position)) landminePositions.push(position)
+      }
+    }
+
+    document.addEventListener('mousedown', (event) => {
+      const tileId = event.target.id
+      switch (event.which) {
+        // Handle left click
+        case 1:
+          displayTile(tileId)
+          break
+        case 3:
+        // Handle right click
+          flagTile(tileId)
+          break
+        default:
+          break
+      }
+    })
+
+    document.querySelector('.js-reset-button')
+      .addEventListener('click', resetGame)
+  })
