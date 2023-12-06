@@ -1,4 +1,4 @@
-# Minesweeper Game
+# Minesweeper lite
 
 ---
 
@@ -38,7 +38,7 @@ Your contributions are appreciated! Feel free to follow me on my social media to
 
 ---
 
-## Juego Buscaminas
+## Buscaminas lite
 
 ---
 
